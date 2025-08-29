@@ -6,16 +6,24 @@ export interface MarketingContent {
   hashtags: string[];
 }
 
-export interface GeneratedAssets {
-  posterImageUrl: string;
-  posterPrompt: string;
+export interface InitialAssets {
+  posterImageUrls: string[];
+  posterPrompts: string[];
   english: MarketingContent;
-  translated: MarketingContent;
-  targetLanguage: string;
-  targetLanguageName: string;
 }
 
 export interface Language {
     code: string;
     name: string;
+}
+
+export interface SavedKit {
+  id: string; // e.g., timestamp
+  createdAt: string;
+  userInput: {
+    imageFile: string; // base64
+    description: string;
+  };
+  generatedAssets: InitialAssets;
+  isInCart?: boolean;
 }

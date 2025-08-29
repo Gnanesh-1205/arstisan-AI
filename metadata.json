@@ -1,5 +1,7 @@
 {
   "name": "Artisan AI Marketing Kit",
   "description": "An AI-driven platform that helps local artisans market their craft by generating beautiful marketing posters, compelling product descriptions, engaging stories, and relevant hashtags from a single photo and description.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [
+    "microphone"
+  ]
 }
