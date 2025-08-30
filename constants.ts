@@ -16,3 +16,13 @@ export const LANGUAGES: Language[] = [
   { code: 'de', name: 'German' },
   { code: 'ja', name: 'Japanese' },
 ];
+
+export const PRODUCT_CATEGORIES = [
+    "Home Decor", 
+    "Sarees",
+    "Jewelry",
+    "Accessories", 
+    "Pottery",
+    "Paintings",
+    "Leather Goods", 
+];

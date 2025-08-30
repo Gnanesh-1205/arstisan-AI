@@ -2,7 +2,6 @@
 import React from 'react';
 import { SavedKit } from '../types';
 import { HeartIcon } from './icons/HeartIcon';
-import { TrashIcon } from './icons/TrashIcon';
 
 interface WishlistProps {
   wishlistItems: SavedKit[];
@@ -34,24 +33,26 @@ export const Wishlist: React.FC<WishlistProps> = ({ wishlistItems, onRemoveItem,
           {wishlistItems.map((kit) => (
             <div
               key={kit.id}
-              className="group relative block bg-white rounded-lg shadow-md hover:shadow-xl transition-shadow duration-300 border border-stone-200 overflow-hidden text-left"
+              className="group relative block bg-white rounded-lg shadow-md hover:shadow-xl transition-shadow duration-300 border border-stone-200 overflow-hidden text-left flex flex-col"
             >
               <div onClick={() => onSelectKit(kit.id)} className="cursor-pointer">
-                <div className="w-full h-48 overflow-hidden">
+                <div className="w-full h-48 overflow-hidden bg-stone-100">
                   <img 
                     src={kit.userInput.imageFile} 
                     alt={kit.generatedAssets.english.title}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                   />
                 </div>
-                <div className="p-4">
-                  <p className="font-semibold text-stone-700 truncate group-hover:text-amber-600 transition-colors">
+              </div>
+               <div className="p-4 flex flex-col flex-grow">
+                  <p className="font-semibold text-stone-700 group-hover:text-amber-600 transition-colors flex-grow">
                     {kit.generatedAssets.english.title}
                   </p>
-                  <p className="text-lg font-bold text-stone-800 mt-2">
-                    {`₹${kit.userInput.price.toFixed(2)}`}
-                  </p>
-                </div>
+                  <div className="mt-2">
+                    <p className="text-lg font-bold text-stone-800">
+                      {`₹${kit.userInput.price.toFixed(2)}`}
+                    </p>
+                  </div>
               </div>
               <button
                 onClick={() => onRemoveItem(kit.id)}

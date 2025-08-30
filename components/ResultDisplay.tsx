@@ -11,10 +11,12 @@ import { CheckIcon } from './icons/CheckIcon';
 import { SpeakerIcon } from './icons/SpeakerIcon';
 import { SpeakerOffIcon } from './icons/SpeakerOffIcon';
 import { HeartIcon } from './icons/HeartIcon';
+import { ZapIcon } from './icons/ZapIcon';
 
 interface ResultDisplayProps {
   initialKit: SavedKit;
   onAddToCart: () => void;
+  onBuyNow: () => void;
   isItemInCart: boolean;
   isItemInWishlist: boolean;
   onToggleWishlist: () => void;
@@ -27,7 +29,7 @@ const TranslationLoader: React.FC = () => (
   </div>
 );
 
-export const ResultDisplay: React.FC<ResultDisplayProps> = ({ initialKit, onAddToCart, isItemInCart, isItemInWishlist, onToggleWishlist }) => {
+export const ResultDisplay: React.FC<ResultDisplayProps> = ({ initialKit, onAddToCart, onBuyNow, isItemInCart, isItemInWishlist, onToggleWishlist }) => {
   const [selectedImage, setSelectedImage] = useState(initialKit.userInput.imageFile);
   const [selectedLanguage, setSelectedLanguage] = useState('english');
   const [translatedContent, setTranslatedContent] = useState<Record<string, MarketingContent>>({
@@ -176,7 +178,7 @@ export const ResultDisplay: React.FC<ResultDisplayProps> = ({ initialKit, onAddT
                     <HeartIcon isFilled={isItemInWishlist} className="w-8 h-8" />
                 </button>
             </div>
-          <p className="mt-4 text-3xl font-bold text-amber-700">{`₹${initialKit.userInput.price.toFixed(2)}`}</p>
+          <p className="mt-3 text-3xl font-bold text-amber-700">{`₹${initialKit.userInput.price.toFixed(2)}`}</p>
         </div>
 
         {/* Main Content Grid */}
@@ -260,11 +262,11 @@ export const ResultDisplay: React.FC<ResultDisplayProps> = ({ initialKit, onAddT
                <h3 className="text-2xl font-semibold text-stone-700 mb-4">Engage &amp; Share</h3>
                <ShareButtons content={currentContent} />
              </div>
-
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <button
                 onClick={onAddToCart}
                 disabled={isItemInCart}
-                className="w-full flex items-center justify-center gap-3 px-6 py-4 bg-amber-600 text-white font-bold rounded-lg shadow-lg hover:bg-amber-700 focus:outline-none focus:ring-4 focus:ring-amber-300 transition-all transform hover:scale-105 disabled:bg-green-600 disabled:shadow-none disabled:transform-none disabled:cursor-default"
+                className="w-full flex items-center justify-center gap-3 px-6 py-4 bg-amber-100 text-amber-800 font-bold rounded-lg shadow hover:bg-amber-200 focus:outline-none focus:ring-4 focus:ring-amber-300 transition-all disabled:bg-green-100 disabled:text-green-800 disabled:shadow-none disabled:cursor-default"
               >
                 {isItemInCart ? (
                   <>
@@ -278,6 +280,14 @@ export const ResultDisplay: React.FC<ResultDisplayProps> = ({ initialKit, onAddT
                   </>
                 )}
               </button>
+              <button
+                onClick={onBuyNow}
+                className="w-full flex items-center justify-center gap-3 px-6 py-4 bg-amber-600 text-white font-bold rounded-lg shadow-lg hover:bg-amber-700 focus:outline-none focus:ring-4 focus:ring-amber-300 transition-all transform hover:scale-105"
+              >
+                 <ZapIcon className="w-6 h-6" />
+                 <span>Buy Now</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>

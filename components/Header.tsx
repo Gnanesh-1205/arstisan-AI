@@ -7,6 +7,7 @@ import { SearchIcon } from './icons/SearchIcon';
 import { ChevronDownIcon } from './icons/ChevronDownIcon';
 import { HeartIcon } from './icons/HeartIcon';
 import { User } from '../types';
+import { PRODUCT_CATEGORIES } from '../constants';
 
 interface HeaderProps {
   view: 'form' | 'loading' | 'results' | 'gallery' | 'cart' | 'auth' | 'profile' | 'wishlist';
@@ -23,8 +24,6 @@ interface HeaderProps {
   currentUser: User | null;
 }
 
-const PRODUCT_CATEGORIES = ["Home Decor", "Accessories", "Leather Goods", "Sarees", "Pottery"];
-
 export const Header: React.FC<HeaderProps> = ({ 
   view, 
   cartItemCount, 
@@ -40,7 +39,7 @@ export const Header: React.FC<HeaderProps> = ({
   currentUser
 }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const showBackButton = view !== 'gallery';
+  const showBackButton = !['gallery', 'results'].includes(view);
   
   const Logo = () => (
      <button onClick={onHome} className="flex items-center space-x-2 flex-shrink-0" aria-label="Artisan AI Home">
@@ -71,30 +70,32 @@ export const Header: React.FC<HeaderProps> = ({
                     <nav className="hidden md:flex items-center gap-4">
                         <button onClick={onHome} className="text-sm font-semibold text-stone-600 hover:text-amber-600 transition-colors">Home</button>
                          <div 
-                            className="relative group"
+                            className="relative"
                             onMouseEnter={() => setIsDropdownOpen(true)}
                             onMouseLeave={() => setIsDropdownOpen(false)}
                          >
                             <button className="flex items-center gap-1 text-sm font-semibold text-stone-600 hover:text-amber-600 transition-colors">
                                 <span>Products</span>
-                                <ChevronDownIcon className={`w-4 h-4 transition-transform group-hover:rotate-180`} />
+                                <ChevronDownIcon className={`w-4 h-4 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
                             </button>
-                            <div className={`absolute top-full left-0 mt-2 w-48 bg-white rounded-md shadow-lg border border-stone-200 py-1 animate-fade-in transition-opacity duration-200 ${isDropdownOpen ? 'opacity-100 visible' : 'opacity-0 invisible'}`}>
-                                {PRODUCT_CATEGORIES.map(category => (
-                                    <a 
-                                        key={category}
-                                        href="#"
-                                        onClick={(e) => {
-                                            e.preventDefault();
-                                            onCategorySelect(category);
-                                            setIsDropdownOpen(false);
-                                        }}
-                                        className="block px-4 py-2 text-sm text-stone-700 hover:bg-amber-50"
-                                    >
-                                        {category}
-                                    </a>
-                                ))}
-                            </div>
+                            {isDropdownOpen && (
+                                <div className="absolute top-full left-0 mt-2 w-48 bg-white rounded-md shadow-lg border border-stone-200 py-1 animate-fade-in">
+                                    {PRODUCT_CATEGORIES.map(category => (
+                                        <a 
+                                            key={category}
+                                            href="#"
+                                            onClick={(e) => {
+                                                e.preventDefault();
+                                                onCategorySelect(category);
+                                                setIsDropdownOpen(false);
+                                            }}
+                                            className="block px-4 py-2 text-sm text-stone-700 hover:bg-amber-50"
+                                        >
+                                            {category}
+                                        </a>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     </nav>
                 </div>

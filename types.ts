@@ -25,6 +25,7 @@ export interface SavedKit {
     imageFile: string; // base64
     description: string;
     price: number;
+    category: string;
   };
   generatedAssets: InitialAssets;
   isInCart?: boolean;

@@ -19,6 +19,7 @@ import { SavedKit, User } from './types';
 import { ResetIcon } from './components/icons/ResetIcon';
 import { MicrophoneIcon } from './components/icons/MicrophoneIcon';
 import { StopIcon } from './components/icons/StopIcon';
+import { PRODUCT_CATEGORIES } from './constants';
 
 type View = 'gallery' | 'form' | 'loading' | 'results' | 'cart' | 'auth' | 'profile' | 'wishlist';
 
@@ -27,6 +28,7 @@ const App: React.FC = () => {
   const [imageBase64, setImageBase64] = useState<string>('');
   const [productDescription, setProductDescription] = useState<string>('');
   const [productPrice, setProductPrice] = useState<string>('');
+  const [productCategory, setProductCategory] = useState<string>(PRODUCT_CATEGORIES[0]);
   
   const [loadingMessage, setLoadingMessage] = useState<string>('');
   const [progress, setProgress] = useState<number>(0);
@@ -38,6 +40,7 @@ const App: React.FC = () => {
   const [selectedKit, setSelectedKit] = useState<SavedKit | null>(null);
   const [view, setView] = useState<View>('gallery');
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('');
   
   const [currentUser, setCurrentUser] = useState<User | null>(null);
 
@@ -107,8 +110,8 @@ const App: React.FC = () => {
       setError('You must be logged in as an artisan to create a product.');
       return;
     }
-    if (!imageFile || !productDescription || !imageBase64 || !productPrice) {
-      setError('Please provide an image, description, and price.');
+    if (!imageFile || !productDescription || !imageBase64 || !productPrice || !productCategory) {
+      setError('Please provide an image, description, category, and price.');
       return;
     }
     setError(null);
@@ -131,6 +134,7 @@ const App: React.FC = () => {
           imageFile: `data:${imageFile.type};base64,${imageBase64}`,
           description: productDescription,
           price: parseFloat(productPrice),
+          category: productCategory,
         },
         generatedAssets: assets,
       };
@@ -146,7 +150,7 @@ const App: React.FC = () => {
       setError(err instanceof Error ? err.message : 'An unknown error occurred.');
       setView('form'); // Go back to form on error
     }
-  }, [imageFile, productDescription, imageBase64, productPrice, currentUser]);
+  }, [imageFile, productDescription, imageBase64, productPrice, productCategory, currentUser]);
 
   const handleSelectKit = (kitId: string) => {
     const kit = kits.find(k => k.id === kitId);
@@ -161,6 +165,7 @@ const App: React.FC = () => {
     setImageBase64('');
     setProductDescription('');
     setProductPrice('');
+    setProductCategory(PRODUCT_CATEGORIES[0]);
     setError(null);
     setProgress(0);
   };
@@ -178,6 +183,12 @@ const App: React.FC = () => {
   const handleAddToCart = (kit: SavedKit) => {
     const newCart = addToCart(kit);
     setCartItems(newCart);
+  };
+
+  const handleBuyNow = (kit: SavedKit) => {
+    const newCart = addToCart(kit);
+    setCartItems(newCart);
+    setView('cart');
   };
   
   const handleRemoveFromCart = (kitId: string) => {
@@ -206,12 +217,19 @@ const App: React.FC = () => {
 
   const handleHome = () => {
     setSearchQuery('');
+    setSelectedCategory('');
     setView('gallery');
   };
 
   const handleCategorySelect = (category: string) => {
-    setSearchQuery(category);
+    setSearchQuery('');
+    setSelectedCategory(category);
     setView('gallery');
+  };
+
+  const handleClearFilter = () => {
+    setSearchQuery('');
+    setSelectedCategory('');
   };
 
   const handleAccountClick = () => {
@@ -254,11 +272,23 @@ const App: React.FC = () => {
   const isSubmitDisabled = !imageFile || !productDescription || !productPrice || view === 'loading';
   
   const filteredKits = kits.filter(kit => {
-    const searchText = searchQuery.toLowerCase();
+    // Category filter
+    const categoryMatch = !selectedCategory || kit.userInput.category === selectedCategory;
+    if (!categoryMatch) return false;
+
+    // Search filter
+    const searchText = searchQuery.toLowerCase().trim();
     if (!searchText) return true;
+
     const title = kit.generatedAssets.english.title.toLowerCase();
-    const description = kit.generatedAssets.english.description.toLowerCase();
-    return title.includes(searchText) || description.includes(searchText);
+    const generatedDesc = kit.generatedAssets.english.description.toLowerCase();
+    const userDesc = kit.userInput.description.toLowerCase();
+    const category = kit.userInput.category.toLowerCase();
+
+    return title.includes(searchText) || 
+           generatedDesc.includes(searchText) || 
+           userDesc.includes(searchText) ||
+           category.includes(searchText);
   });
 
   const renderContent = () => {
@@ -268,9 +298,9 @@ const App: React.FC = () => {
       case 'results':
         const isItemInCart = selectedKit ? cartItems.some(item => item.id === selectedKit.id) : false;
         const isItemInWishlist = selectedKit ? wishlistItemIds.includes(selectedKit.id) : false;
-        return selectedKit ? <ResultDisplay key={selectedKit.id} initialKit={selectedKit} onAddToCart={() => handleAddToCart(selectedKit)} isItemInCart={isItemInCart} isItemInWishlist={isItemInWishlist} onToggleWishlist={() => handleToggleWishlist(selectedKit.id)} /> : <p>No kit selected.</p>;
+        return selectedKit ? <ResultDisplay key={selectedKit.id} initialKit={selectedKit} onAddToCart={() => handleAddToCart(selectedKit)} onBuyNow={() => handleBuyNow(selectedKit)} isItemInCart={isItemInCart} isItemInWishlist={isItemInWishlist} onToggleWishlist={() => handleToggleWishlist(selectedKit.id)} /> : <p>No kit selected.</p>;
       case 'gallery':
-        return <Gallery kits={filteredKits} onSelectKit={handleSelectKit} onCreateNew={handleCreateNew} searchQuery={searchQuery} currentUser={currentUser} wishlistItemIds={wishlistItemIds} onToggleWishlist={handleToggleWishlist} />;
+        return <Gallery kits={filteredKits} onSelectKit={handleSelectKit} searchQuery={searchQuery} selectedCategory={selectedCategory} onClearFilter={handleClearFilter} currentUser={currentUser} wishlistItemIds={wishlistItemIds} onToggleWishlist={handleToggleWishlist} />;
       case 'cart':
         return <Cart cartItems={cartItems} onRemoveItem={handleRemoveFromCart} onBackToShop={() => setView('gallery')} />;
       case 'wishlist':
@@ -309,20 +339,38 @@ const App: React.FC = () => {
                      {isRecording ? <StopIcon className="w-5 h-5" /> : <MicrophoneIcon className="w-5 h-5" />}
                    </button>
                  </div>
-                 <textarea value={productDescription} onChange={(e) => setProductDescription(e.target.value)} placeholder="Type, paste, or record a description... e.g., 'Hand-carved wooden elephant...'" rows={6} className="w-full p-3 bg-white border border-stone-300 rounded-lg shadow-sm focus:ring-2 focus:ring-amber-500 transition" aria-label="Product Description" />
+                 <textarea value={productDescription} onChange={(e) => setProductDescription(e.target.value)} placeholder="Type, paste, or record a description... e.g., 'Hand-carved wooden elephant...'" rows={4} className="w-full p-3 bg-white border border-stone-300 rounded-lg shadow-sm focus:ring-2 focus:ring-amber-500 transition" aria-label="Product Description" />
                   <div>
-                    <h3 className="text-xl font-semibold text-stone-600 border-b-2 border-amber-500 pb-2 mb-4">3. Set Your Price (₹)</h3>
-                    <input 
-                      type="number" 
-                      value={productPrice} 
-                      onChange={(e) => setProductPrice(e.target.value)} 
-                      placeholder="e.g., 1299" 
-                      min="0" 
-                      step="1" 
-                      className="w-full p-3 bg-white border border-stone-300 rounded-lg shadow-sm focus:ring-2 focus:ring-amber-500 transition" 
-                      aria-label="Product Price in INR" 
-                      required 
-                    />
+                    <h3 className="text-xl font-semibold text-stone-600 border-b-2 border-amber-500 pb-2 mb-4">3. Set Product Details</h3>
+                    <div className="space-y-4">
+                      <div>
+                        <label htmlFor="category" className="block text-sm font-medium text-stone-600 mb-1">Category</label>
+                        <select
+                          id="category"
+                          value={productCategory}
+                          onChange={(e) => setProductCategory(e.target.value)}
+                          className="w-full p-3 bg-white border border-stone-300 rounded-lg shadow-sm focus:ring-2 focus:ring-amber-500 transition"
+                          required
+                        >
+                          {PRODUCT_CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label htmlFor="price" className="block text-sm font-medium text-stone-600 mb-1">Price (₹)</label>
+                        <input 
+                          id="price"
+                          type="number" 
+                          value={productPrice} 
+                          onChange={(e) => setProductPrice(e.target.value)} 
+                          placeholder="e.g., 1299" 
+                          min="0" 
+                          step="1" 
+                          className="w-full p-3 bg-white border border-stone-300 rounded-lg shadow-sm focus:ring-2 focus:ring-amber-500 transition" 
+                          aria-label="Product Price in INR" 
+                          required 
+                        />
+                      </div>
+                    </div>
                   </div>
               </div>
             </div>
