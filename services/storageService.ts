@@ -27,3 +27,8 @@ export const getAllMarketingKits = (): SavedKit[] => {
     return [];
   }
 };
+
+export const getKitsByArtisan = (artisanId: string): SavedKit[] => {
+  const allKits = getAllMarketingKits();
+  return allKits.filter(kit => kit.artisanId === artisanId);
+};

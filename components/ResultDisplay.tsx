@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { SavedKit, MarketingContent } from '../types';
 import { DownloadIcon } from './icons/DownloadIcon';
 import { AssetCard } from './AssetCard';
@@ -8,168 +8,279 @@ import { ShareButtons } from './ShareButtons';
 import { translateContent } from '../services/geminiService';
 import { CartIcon } from './icons/CartIcon';
 import { CheckIcon } from './icons/CheckIcon';
+import { SpeakerIcon } from './icons/SpeakerIcon';
+import { SpeakerOffIcon } from './icons/SpeakerOffIcon';
+import { HeartIcon } from './icons/HeartIcon';
 
 interface ResultDisplayProps {
   initialKit: SavedKit;
   onAddToCart: () => void;
   isItemInCart: boolean;
+  isItemInWishlist: boolean;
+  onToggleWishlist: () => void;
 }
 
 const TranslationLoader: React.FC = () => (
-    <div className="flex flex-col items-center justify-center p-6 bg-stone-50/50 rounded-lg border border-dashed">
-        <div className="w-8 h-8 border-2 border-t-2 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
-        <p className="mt-3 text-sm font-semibold text-stone-600">Translating...</p>
-    </div>
+  <div className="flex items-center justify-center p-4 bg-stone-50 rounded-lg">
+    <div className="w-5 h-5 border-2 border-t-2 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
+    <p className="ml-3 text-sm text-stone-500">Translating...</p>
+  </div>
 );
 
+export const ResultDisplay: React.FC<ResultDisplayProps> = ({ initialKit, onAddToCart, isItemInCart, isItemInWishlist, onToggleWishlist }) => {
+  const [selectedImage, setSelectedImage] = useState(initialKit.userInput.imageFile);
+  const [selectedLanguage, setSelectedLanguage] = useState('english');
+  const [translatedContent, setTranslatedContent] = useState<Record<string, MarketingContent>>({
+    english: initialKit.generatedAssets.english,
+  });
+  const [isTranslating, setIsTranslating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [speakingAsset, setSpeakingAsset] = useState<string | null>(null);
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
 
-export const ResultDisplay: React.FC<ResultDisplayProps> = ({ initialKit, onAddToCart, isItemInCart }) => {
-  const [activeTab, setActiveTab] = useState<'english' | 'translated'>('english');
-  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  useEffect(() => {
+    const loadVoices = () => {
+      const availableVoices = window.speechSynthesis.getVoices();
+      if (availableVoices.length > 0) {
+        setVoices(availableVoices);
+      }
+    };
 
-  const [translatedContent, setTranslatedContent] = useState<MarketingContent | null>(null);
-  const [selectedLanguage, setSelectedLanguage] = useState<string>('');
-  const [isTranslating, setIsTranslating] = useState<boolean>(false);
-  const [translationError, setTranslationError] = useState<string | null>(null);
+    // The voices list is loaded asynchronously.
+    window.speechSynthesis.onvoiceschanged = loadVoices;
+    loadVoices(); // For browsers that load it immediately
 
-  const assets = initialKit.generatedAssets;
+    return () => {
+      window.speechSynthesis.onvoiceschanged = null;
+    };
+  }, []);
   
-  const targetLanguageName = useMemo(() => {
-    return LANGUAGES.find(l => l.code === selectedLanguage)?.name;
-  }, [selectedLanguage]);
+  const handleSpeak = useCallback((text: string, assetKey: string) => {
+    if (!window.speechSynthesis) {
+        alert('Your browser does not support text-to-speech.');
+        return;
+    }
+    if (speakingAsset === assetKey) {
+        window.speechSynthesis.cancel();
+        setSpeakingAsset(null);
+        return;
+    }
+    if (window.speechSynthesis.speaking) {
+        window.speechSynthesis.cancel();
+    }
 
-  const handleLanguageChange = useCallback(async (languageCode: string) => {
-    if (!languageCode) return;
+    const utterance = new SpeechSynthesisUtterance(text);
+
+    // Map our short codes to BCP 47 language tags for better voice matching
+    const langMap: { [key: string]: string } = {
+      english: 'en-US',
+      hi: 'hi-IN',
+      bn: 'bn-IN',
+      ta: 'ta-IN',
+      te: 'te-IN',
+      mr: 'mr-IN',
+      gu: 'gu-IN',
+      kn: 'kn-IN',
+      ml: 'ml-IN',
+      pa: 'pa-IN',
+      es: 'es-ES',
+      fr: 'fr-FR',
+      de: 'de-DE',
+      ja: 'ja-JP',
+    };
+
+    const targetLang = langMap[selectedLanguage] || selectedLanguage;
+    utterance.lang = targetLang;
+
+    // Find a specific voice for the target language for more reliable playback
+    const voice = voices.find(v => v.lang === targetLang);
+    if (voice) {
+      utterance.voice = voice;
+    } else {
+      console.warn(`Speech synthesis voice not found for language: ${targetLang}. Using browser default.`);
+    }
     
-    setActiveTab('translated');
-    setIsTranslating(true);
-    setTranslatedContent(null);
-    setSelectedLanguage(languageCode);
-    setTranslationError(null);
+    utterance.onstart = () => setSpeakingAsset(assetKey);
+    utterance.onend = () => setSpeakingAsset(null);
+    utterance.onerror = (e: SpeechSynthesisErrorEvent) => {
+        // Gracefully handle interruptions, which are not true errors.
+        if (e.error === 'interrupted') {
+            console.log('Speech was interrupted.');
+        } else {
+            console.error('Speech synthesis error:', e.error);
+        }
+        setSpeakingAsset(null);
+    };
+    window.speechSynthesis.speak(utterance);
+  }, [speakingAsset, selectedLanguage, voices]);
 
+  useEffect(() => {
+    return () => {
+        if (window.speechSynthesis && window.speechSynthesis.speaking) {
+            window.speechSynthesis.cancel();
+        }
+    };
+  }, []);
+
+
+  const handleLanguageChange = useCallback(async (langCode: string) => {
+    if (langCode === 'english' || translatedContent[langCode]) {
+      setSelectedLanguage(langCode);
+      return;
+    }
+
+    setIsTranslating(true);
+    setError(null);
     try {
-      const translation = await translateContent(assets.english, languageCode);
-      setTranslatedContent(translation);
+      const translation = await translateContent(initialKit.generatedAssets.english, langCode);
+      setTranslatedContent(prev => ({ ...prev, [langCode]: translation }));
+      setSelectedLanguage(langCode);
     } catch (err) {
-      console.error(err);
-      setTranslationError(err instanceof Error ? err.message : 'Failed to translate content.');
+      console.error("Translation failed:", err);
+      setError("Sorry, we couldn't translate the content. Please try again.");
     } finally {
       setIsTranslating(false);
     }
-  }, [assets.english]);
+  }, [initialKit.generatedAssets.english, translatedContent]);
 
+  const currentContent = useMemo(() => {
+    return translatedContent[selectedLanguage] || initialKit.generatedAssets.english;
+  }, [selectedLanguage, translatedContent, initialKit.generatedAssets.english]);
 
-  const content = activeTab === 'english' ? assets.english : translatedContent;
-
-  const handleDownload = () => {
+  const allImages = useMemo(() => [
+    initialKit.userInput.imageFile,
+    ...initialKit.generatedAssets.posterImageUrls,
+  ], [initialKit]);
+  
+  const handleDownload = (imageUrl: string) => {
     const link = document.createElement('a');
-    link.href = assets.posterImageUrls[selectedImageIndex];
-    link.download = `${assets.english.title.replace(/\s+/g, '_')}_poster_${selectedImageIndex + 1}.jpg`;
+    link.href = imageUrl;
+    link.download = `artisan-ai-${initialKit.id}-${Date.now()}.jpg`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
-  
+
   return (
-    <div className="space-y-8 animate-fade-in">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
-        {/* Poster Column */}
-        <div className="space-y-4">
-            <div className="bg-white p-4 rounded-lg shadow-lg border border-stone-200">
-                <img src={assets.posterImageUrls[selectedImageIndex]} alt={`Generated marketing poster ${selectedImageIndex + 1}`} className="w-full h-auto object-cover rounded-md aspect-[3/4]" />
+    <>
+      <div className="space-y-8 animate-fade-in">
+        {/* Product Header */}
+        <div className="text-center">
+            <div className="flex items-center justify-center gap-4">
+                <h2 className="text-3xl sm:text-4xl font-bold text-stone-800">{currentContent.title}</h2>
+                <button
+                    onClick={onToggleWishlist}
+                    className="p-2 rounded-full text-red-500 hover:bg-red-50 transition-colors"
+                    aria-label={isItemInWishlist ? 'Remove from wishlist' : 'Add to wishlist'}
+                >
+                    <HeartIcon isFilled={isItemInWishlist} className="w-8 h-8" />
+                </button>
             </div>
-            <div className="grid grid-cols-5 gap-2">
-                {assets.posterImageUrls.map((url, index) => (
-                    <button key={index} onClick={() => setSelectedImageIndex(index)} className={`rounded-md overflow-hidden border-2 ${selectedImageIndex === index ? 'border-amber-500 ring-2 ring-amber-500' : 'border-transparent hover:border-amber-400'}`}>
-                        <img src={url} alt={`Thumbnail ${index + 1}`} className="w-full h-full object-cover aspect-[3/4]" />
-                    </button>
-                ))}
-            </div>
-             <button
-                onClick={handleDownload}
-                className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-stone-200 text-stone-700 font-semibold rounded-lg hover:bg-stone-300 focus:outline-none focus:ring-4 focus:ring-stone-300 transition-all"
-              >
-                <DownloadIcon />
-                Download Poster {selectedImageIndex + 1}
-            </button>
-            <details className="pt-2">
-                <summary className="cursor-pointer text-sm text-stone-500 hover:text-stone-800">View AI Prompt for Poster {selectedImageIndex + 1}</summary>
-                <p className="mt-2 text-xs p-3 bg-stone-100 rounded-md text-stone-600">{assets.posterPrompts[selectedImageIndex]}</p>
-            </details>
+          <p className="mt-4 text-3xl font-bold text-amber-700">{`₹${initialKit.userInput.price.toFixed(2)}`}</p>
         </div>
 
-        {/* Text Assets Column */}
-        <div className="space-y-6">
-            <div className="space-y-3">
-                <h2 className="text-3xl font-bold text-stone-800">{assets.english.title}</h2>
-                <p className="text-stone-600">{assets.english.description}</p>
-            </div>
-
-            <button
-                onClick={onAddToCart}
-                disabled={isItemInCart}
-                className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-amber-600 text-white font-bold rounded-lg shadow-md hover:bg-amber-700 focus:outline-none focus:ring-4 focus:ring-amber-300 transition-all disabled:bg-stone-400 disabled:cursor-not-allowed"
+        {/* Main Content Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          {/* Image Gallery */}
+          <div className="space-y-4">
+            <div className="relative bg-white rounded-lg shadow-lg border border-stone-200 overflow-hidden">
+              <img
+                src={selectedImage}
+                alt={currentContent.title}
+                className="w-full h-auto object-contain transition-all duration-300"
+                style={{aspectRatio: '3/4'}}
+              />
+               <button
+                  onClick={() => handleDownload(selectedImage)}
+                  className="absolute top-3 right-3 bg-white/80 backdrop-blur-sm rounded-full p-2 text-stone-600 hover:bg-white hover:text-amber-600 transition-colors shadow"
+                  aria-label="Download image"
                 >
-                {isItemInCart ? <><CheckIcon className="w-5 h-5" /> In Cart</> : <><CartIcon className="w-5 h-5"/> Add to Cart</>}
-            </button>
+                  <DownloadIcon className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+              {allImages.map((img, index) => (
+                <button
+                  key={index}
+                  onClick={() => setSelectedImage(img)}
+                  className={`block rounded-md overflow-hidden border-2 ${selectedImage === img ? 'border-amber-500' : 'border-transparent'} hover:border-amber-400 transition-all focus:outline-none focus:ring-2 focus:ring-amber-500`}
+                  aria-label={`View image ${index + 1}`}
+                >
+                  <img src={img} alt={`Thumbnail ${index + 1}`} className="w-full h-full object-cover" style={{aspectRatio: '1/1'}}/>
+                </button>
+              ))}
+            </div>
+          </div>
 
-            <div className="pt-4 space-y-4">
-              <h3 className="text-2xl font-semibold text-stone-700 border-b-2 border-amber-500 pb-2">The Story & Marketing Kit</h3>
-
-              <div className="p-4 bg-white border border-stone-200 rounded-lg shadow-sm">
-                  <label htmlFor="language-select" className="block text-sm font-medium text-stone-600 mb-2">
-                      Translate to another language:
-                  </label>
-                  <select
+          {/* Product Details & Actions */}
+          <div className="space-y-6">
+            <div className="bg-white p-6 rounded-lg shadow-lg border border-stone-200">
+               <h3 className="text-2xl font-semibold text-stone-700 mb-4 border-b pb-3">Product Story &amp; Details</h3>
+               
+               {/* Language Selector */}
+               <div className="mb-4">
+                   <label htmlFor="language-select" className="block text-sm font-medium text-stone-600 mb-1">Translate Content:</label>
+                   <select
                       id="language-select"
                       value={selectedLanguage}
                       onChange={(e) => handleLanguageChange(e.target.value)}
+                      className="w-full p-2 bg-white border border-stone-300 rounded-md shadow-sm focus:ring-amber-500 focus:border-amber-500 text-stone-800"
                       disabled={isTranslating}
-                      className="w-full p-3 bg-white border border-stone-300 rounded-lg shadow-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition duration-150 ease-in-out disabled:bg-stone-100 disabled:cursor-wait"
-                      >
-                      <option value="" disabled>Select a language...</option>
-                      {LANGUAGES.map((lang) => (
+                   >
+                      <option value="english">English (Original)</option>
+                      {LANGUAGES.map(lang => (
                           <option key={lang.code} value={lang.code}>{lang.name}</option>
                       ))}
-                  </select>
-              </div>
-
-              <div className="flex border-b border-stone-200">
-                  <button
-                      onClick={() => setActiveTab('english')}
-                      className={`px-4 py-2 font-semibold transition-colors duration-200 ${activeTab === 'english' ? 'border-b-2 border-amber-600 text-amber-600' : 'text-stone-500 hover:text-stone-800'}`}
-                  >
-                      English
-                  </button>
-                  {targetLanguageName && (
-                      <button
-                          onClick={() => setActiveTab('translated')}
-                          className={`px-4 py-2 font-semibold transition-colors duration-200 ${activeTab === 'translated' ? 'border-b-2 border-amber-600 text-amber-600' : 'text-stone-500 hover:text-stone-800'}`}
-                      >
-                          {targetLanguageName}
-                      </button>
-                  )}
-              </div>
-            
-              <div className="space-y-4 pt-2">
-                  {activeTab === 'translated' && isTranslating && <TranslationLoader />}
-                  {activeTab === 'translated' && translationError && !isTranslating && (
-                      <p className="text-center text-red-600 bg-red-100 p-3 rounded-lg">{translationError}</p>
-                  )}
-                  {content && !isTranslating && (
-                      <>
-                          <AssetCard title="Artisan's Story" content={content.story} />
-                          <AssetCard title="Social Media Hashtags" content={content.hashtags} />
-                          <div className="pt-4">
-                            <h4 className="font-bold text-stone-700 mb-3 text-lg">Share Your Kit</h4>
-                            <ShareButtons content={content} />
-                          </div>
-                      </>
-                  )}
-              </div>
+                   </select>
+                   {error && <p className="text-red-500 text-sm mt-1">{error}</p>}
+               </div>
+               
+               {isTranslating ? (
+                  <TranslationLoader />
+               ) : (
+                  <div className="space-y-4">
+                       <AssetCard
+                        title="Description"
+                        content={currentContent.description}
+                        isSpeaking={speakingAsset === 'description'}
+                        onSpeak={(text) => handleSpeak(text, 'description')}
+                      />
+                      <AssetCard
+                        title="The Story"
+                        content={currentContent.story}
+                        isSpeaking={speakingAsset === 'story'}
+                        onSpeak={(text) => handleSpeak(text, 'story')}
+                      />
+                      <AssetCard title="Hashtags for Social Media" content={currentContent.hashtags} />
+                  </div>
+               )}
             </div>
+            
+             <div className="bg-white p-6 rounded-lg shadow-lg border border-stone-200">
+               <h3 className="text-2xl font-semibold text-stone-700 mb-4">Engage &amp; Share</h3>
+               <ShareButtons content={currentContent} />
+             </div>
+
+              <button
+                onClick={onAddToCart}
+                disabled={isItemInCart}
+                className="w-full flex items-center justify-center gap-3 px-6 py-4 bg-amber-600 text-white font-bold rounded-lg shadow-lg hover:bg-amber-700 focus:outline-none focus:ring-4 focus:ring-amber-300 transition-all transform hover:scale-105 disabled:bg-green-600 disabled:shadow-none disabled:transform-none disabled:cursor-default"
+              >
+                {isItemInCart ? (
+                  <>
+                    <CheckIcon className="w-6 h-6" />
+                    <span>Added to Cart</span>
+                  </>
+                ) : (
+                   <>
+                    <CartIcon className="w-6 h-6" />
+                    <span>Add to Cart</span>
+                  </>
+                )}
+              </button>
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 };
